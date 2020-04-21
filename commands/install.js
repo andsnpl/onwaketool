@@ -1,5 +1,6 @@
 var path = require('path');
 var shell = require('shelljs');
+var parseArgs = require('../lib/parseArgs');
 var plists = require('../lib/plists');
 var defaults = require('../lib/defaults');
 var logger = require('../lib/logger');
@@ -15,12 +16,12 @@ function binScript(module, script) {
   }
 }
 
-function composePlist(plistName, configPath, logDir) {
+function composePlist(plistName, configPath, logDir, debugFlag) {
   var forever = binScript('forever');
   var foreverLog = path.join(logDir, 'onwaked.forever.log');
   var daemon = require.resolve('../onwaked');
-  var daemonLog = path.join(logDir, 'onwaked.out.log');
-  var daemonErrors = path.join(logDir, 'onwaked.error.log');
+  var daemonLog = path.join(logDir, 'onwaked.stdout.log');
+  var daemonErrors = path.join(logDir, 'onwaked.stderr.log');
   return plists.plist({
     Label: plistName,
     RunAtLoad: true,
@@ -28,6 +29,7 @@ function composePlist(plistName, configPath, logDir) {
     EnvironmentVariables: {
       ONWAKED_JOBS: configPath,
       ONWAKED_LOGDIR: logDir,
+      ONWAKED_DEBUG: debugFlag.toString(),
       PATH: process.env.PATH,
     },
     Program: forever,
@@ -59,11 +61,13 @@ function installService(plistName, plistText) {
 }
 
 module.exports = function install(context, args) {
+  args = parseArgs(args);
   var configPath = path.resolve(
     context.dirname,
     defaults.DEFAULT_JOBS_CONFG_PATH
   );
   var logDir = path.resolve(context.dirname, 'logs/');
+  var debugFlag = false;
   args.forEach(function (arg) {
     switch (arg.flag) {
       case '-f':
@@ -73,6 +77,9 @@ module.exports = function install(context, args) {
       case '-l':
       case '--logdir':
         logDir = path.resolve(context.dirname, arg.value);
+      case '--debug':
+        debugFlag = arg.boolean;
+        break;
       default:
         throw new Error(
           'Unrecognized argument to `install`: ' + JSON.stringify(arg)
@@ -80,7 +87,7 @@ module.exports = function install(context, args) {
     }
   });
   var plistName = 'pl.andsn.onwaketool';
-  var plistText = composePlist(plistName, configPath, logDir);
+  var plistText = composePlist(plistName, configPath, logDir, debugFlag);
   shell.mkdir('-p', logDir);
   installService(plistName, plistText);
 };

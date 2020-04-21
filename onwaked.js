@@ -1,5 +1,6 @@
 var path = require('path');
 var desktopIdle = require('desktop-idle');
+var notificationState = require('@meetfranz/electron-notification-state');
 var notifier = require('node-notifier');
 var winston = require('winston');
 require('winston-daily-rotate-file');
@@ -9,39 +10,74 @@ var logger = require('./lib/logger');
 logger.add(
   new winston.transports.DailyRotateFile({
     dirname: process.env.ONWAKED_LOGDIR,
-    fileName: 'onwaked-%DATE%.log',
+    filename: 'onwaked.log.%DATE%',
     createSymlink: true,
     symlinkName: 'onwaked.log',
     maxFiles: '14d',
   })
 );
 
+var debugFlag = process.env.ONWAKED_DEBUG;
+if (parseInt(debugFlag) || debugFlag.toLowerCase() === 'true')
+  logger.add(
+    new winston.transports.DailyRotateFile({
+      level: 'debug',
+      dirname: process.env.ONWAKED_LOGDIR,
+      filename: 'onwaked.debug.log.%DATE%',
+      createSymlink: true,
+      symlinkName: 'onwaked.debug.log',
+      maxFiles: '14d',
+    })
+  );
+
 var configImportPath =
   './' + path.relative(__dirname, process.env.ONWAKED_JOBS);
 
-var intervalTime = 1000 * 10;
-var lastIdleStart = Date.now();
+var checkForWakeInterval = 1000 * 10;
+var lastActive = Date.now();
+
+var isDesktopUnlocked = function isDesktopUnlocked() {
+  switch (notificationState.getSessionState()) {
+    case 'SESSION_SCREEN_IS_LOCKED':
+    case 'QUNS_NOT_PRESENT':
+      logger.debug({ message: 'screen is locked' });
+      return false;
+    default:
+      logger.debug({ message: 'screen is not locked' });
+      return true;
+  }
+};
 
 var checkForWake = function checkForWake(callback) {
   try {
-    var idleStart = Date.now() - desktopIdle.getIdleTime();
+    var newestActivity = Date.now() - desktopIdle.getIdleTime();
+    logger.debug({
+      message: 'Checking for wake',
+      newestActivity: newestActivity,
+      lastActive: lastActive,
+    });
 
-    if (idleStart > lastIdleStart) {
-      // There has been activity. Now we compute how long we were idle
-      var idleTime = idleStart - lastIdleStart;
-      lastIdleStart = idleStart;
+    var activityInterval = newestActivity - lastActive;
+    lastActive = newestActivity;
+
+    if (activityInterval >= 2 * checkForWakeInterval && isDesktopUnlocked()) {
+      logger.debug({
+        message: 'Woke up after idle',
+        checkInterval: checkForWakeInterval,
+        idleTime: activityInterval,
+      });
 
       var config = require(configImportPath);
-      runJobs(config, idleTime, function (results) {
+      runJobs(config, activityInterval, function (results) {
         var totalJobs = results.successes + results.failures;
         if (totalJobs) {
-          notifier.notify({
+          notify({
             title: 'onwaked: finished',
             message: 'ran ' + totalJobs + ' jobs',
           });
         }
         if (results.failures) {
-          notifier.notify({
+          notify({
             title: 'onwaked: jobs failed',
             message: results.failures + ' jobs failed',
           });
@@ -55,8 +91,18 @@ var checkForWake = function checkForWake(callback) {
   }
 };
 
+var notify = function notify(notification) {
+  var notifState = notificationState.getSessionState();
+  if (
+    notifState === 'SESSION_ON_CONSOLE_KEY' ||
+    notifState === 'QUNS_ACCEPTS_NOTIFICATIONS'
+  ) {
+    notifier.notify(notification);
+  }
+};
+
 setTimeout(function callee() {
   checkForWake(function () {
-    setTimeout(callee, intervalTime);
+    setTimeout(callee, checkForWakeInterval);
   });
-}, intervalTime);
+}, checkForWakeInterval);

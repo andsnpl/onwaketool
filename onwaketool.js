@@ -5,6 +5,7 @@ var install = require('./commands/install');
 var add = require('./commands/add');
 var remove = require('./commands/remove');
 var run = require('./commands/run');
+var logger = require('./lib/logger');
 
 logger.add(new winston.transports.Console());
 
