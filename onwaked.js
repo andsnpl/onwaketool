@@ -1,10 +1,23 @@
 var path = require('path');
 var desktopIdle = require('desktop-idle');
 var notifier = require('node-notifier');
+var winston = require('winston');
+require('winston-daily-rotate-file');
 var runJobs = require('./lib/runJobs');
+var logger = require('./lib/logger');
+
+logger.add(
+  new winston.transports.DailyRotateFile({
+    dirname: process.env.ONWAKED_LOGDIR,
+    fileName: 'onwaked-%DATE%.log',
+    createSymlink: true,
+    symlinkName: 'onwaked.log',
+    maxFiles: '14d',
+  })
+);
 
 var configImportPath =
-  './' + path.relative(__dirname, process.env.ONWAKETOOL_JOBS);
+  './' + path.relative(__dirname, process.env.ONWAKED_JOBS);
 
 var intervalTime = 1000 * 10;
 var lastIdleStart = Date.now();
@@ -37,7 +50,7 @@ var checkForWake = function checkForWake(callback) {
       });
     }
   } catch (e) {
-    console.error('checkForWake failed to run', e);
+    logger.error({ message: 'checkForWake failed to run', error: e });
     callback();
   }
 };

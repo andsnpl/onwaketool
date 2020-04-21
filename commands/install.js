@@ -2,6 +2,7 @@ var path = require('path');
 var shell = require('shelljs');
 var plists = require('../lib/plists');
 var defaults = require('../lib/defaults');
+var logger = require('../lib/logger');
 
 function binScript(module, script) {
   if (script === undefined) script = module;
@@ -18,29 +19,29 @@ function composePlist(plistName, configPath, logDir) {
   var forever = binScript('forever');
   var foreverLog = path.join(logDir, 'onwaked.forever.log');
   var daemon = require.resolve('../onwaked');
-  var daemonLog = path.join(logDir, 'onwaked.log');
+  var daemonLog = path.join(logDir, 'onwaked.out.log');
   var daemonErrors = path.join(logDir, 'onwaked.error.log');
-  var args = [
-    'start',
-    '-a',
-    '-l',
-    foreverLog,
-    '-o',
-    daemonLog,
-    '-e',
-    daemonErrors,
-    daemon,
-  ];
   return plists.plist({
     Label: plistName,
+    RunAtLoad: true,
     WorkingDirectory: path.dirname(daemon),
     EnvironmentVariables: {
-      ONWAKETOOL_JOBS: configPath,
+      ONWAKED_JOBS: configPath,
+      ONWAKED_LOGDIR: logDir,
       PATH: process.env.PATH,
     },
     Program: forever,
-    ProgramArguments: args,
-    RunAtLoad: true,
+    ProgramArguments: [
+      'start',
+      '-a',
+      '-l',
+      foreverLog,
+      '-o',
+      daemonLog,
+      '-e',
+      daemonErrors,
+      daemon,
+    ],
   });
 }
 
@@ -54,7 +55,7 @@ function installService(plistName, plistText) {
   shell.exec('launchctl unload ' + plistLocation, { fatal: true });
   shell.exec('launchctl load ' + plistLocation, { fatal: true });
   shell.exec('launchctl start ' + plistLocation, { fatal: true });
-  console.log('installed plist to:', plistLocation);
+  logger.info({ message: 'Installed plist', plistLocation: plistLocation });
 }
 
 module.exports = function install(context, args) {

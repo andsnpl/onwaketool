@@ -1,9 +1,12 @@
 #! /usr/bin/env node
 
+var winston = require('winston');
 var install = require('./commands/install');
 var add = require('./commands/add');
 var remove = require('./commands/remove');
 var run = require('./commands/run');
+
+logger.add(new winston.transports.Console());
 
 var context = {
   dirname: __dirname,
