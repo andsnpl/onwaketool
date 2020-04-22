@@ -17,7 +17,7 @@ logger.add(
   })
 );
 
-var debugFlag = process.env.ONWAKED_DEBUG;
+var debugFlag = process.env.ONWAKED_DEBUG || '';
 if (parseInt(debugFlag) || debugFlag.toLowerCase() === 'true')
   logger.add(
     new winston.transports.DailyRotateFile({
@@ -34,7 +34,7 @@ var configImportPath =
   './' + path.relative(__dirname, process.env.ONWAKED_JOBS);
 
 var checkForWakeInterval = 1000 * 10;
-var lastActive = Date.now();
+var lastActive = null;
 
 var isDesktopUnlocked = function isDesktopUnlocked() {
   switch (notificationState.getSessionState()) {
@@ -58,9 +58,11 @@ var checkForWake = function checkForWake(callback) {
     });
 
     var activityInterval = newestActivity - lastActive;
+    var isNewActivity =
+      !lastActive || activityInterval >= 2 * checkForWakeInterval;
     lastActive = newestActivity;
 
-    if (activityInterval >= 2 * checkForWakeInterval && isDesktopUnlocked()) {
+    if (isDesktopUnlocked() && isNewActivity) {
       logger.debug({
         message: 'Woke up after idle',
         checkInterval: checkForWakeInterval,
@@ -84,9 +86,14 @@ var checkForWake = function checkForWake(callback) {
         }
         callback();
       });
+    } else {
+      callback();
     }
   } catch (e) {
-    logger.error({ message: 'checkForWake failed to run', error: e });
+    logger.error({
+      message: 'checkForWake failed to run',
+      error: e.toString(),
+    });
     callback();
   }
 };
