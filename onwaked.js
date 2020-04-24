@@ -58,11 +58,17 @@ var checkForWake = function checkForWake(callback) {
     });
 
     var activityInterval = newestActivity - lastActive;
-    var isNewActivity =
+    var didWakeFromIdle =
       !lastActive || activityInterval >= 2 * checkForWakeInterval;
-    lastActive = newestActivity;
+    var isUnlocked = isDesktopUnlocked();
 
-    if (isDesktopUnlocked() && isNewActivity) {
+    if (isUnlocked) {
+      // We want to ignore activity that happens while we are locked,
+      // but otherwise lastActive should be updated every iteration.
+      lastActive = newestActivity;
+    }
+
+    if (didWakeFromIdle && isUnlocked) {
       logger.debug({
         message: 'Woke up after idle',
         checkInterval: checkForWakeInterval,
