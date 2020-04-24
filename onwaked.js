@@ -1,11 +1,14 @@
 var path = require('path');
 var desktopIdle = require('desktop-idle');
+var shell = require('shelljs');
 var notificationState = require('@meetfranz/electron-notification-state');
 var notifier = require('node-notifier');
 var winston = require('winston');
 require('winston-daily-rotate-file');
 var runJobs = require('./lib/runJobs');
 var logger = require('./lib/logger');
+
+shell.mkdir('-p', process.env.ONWAKED_LOGDIR);
 
 logger.add(
   new winston.transports.DailyRotateFile({
@@ -30,12 +33,6 @@ if (parseInt(debugFlag) || debugFlag.toLowerCase() === 'true')
     })
   );
 
-var configImportPath =
-  './' + path.relative(__dirname, process.env.ONWAKED_JOBS);
-
-var checkForWakeInterval = 1000 * 10;
-var lastActive = null;
-
 var isDesktopUnlocked = function isDesktopUnlocked() {
   switch (notificationState.getSessionState()) {
     case 'SESSION_SCREEN_IS_LOCKED':
@@ -47,6 +44,23 @@ var isDesktopUnlocked = function isDesktopUnlocked() {
       return true;
   }
 };
+
+var requireConfig = function requireConfig() {
+  var configImportPath =
+    './' + path.relative(__dirname, process.env.ONWAKED_JOBS);
+  try {
+    return require(configImportPath);
+  } catch (e) {
+    logger.warn({
+      message: 'Config file could not be imported',
+      configPath: process.env.ONWAKED_JOBS
+    });
+    return {};
+  }
+}
+
+var checkForWakeInterval = 1000 * 10;
+var lastActive = null;
 
 var checkForWake = function checkForWake(callback) {
   try {
@@ -75,7 +89,7 @@ var checkForWake = function checkForWake(callback) {
         idleTime: activityInterval,
       });
 
-      var config = require(configImportPath);
+      var config = requireConfig();
       runJobs(config, activityInterval, function (results) {
         var totalJobs = results.successes + results.failures;
         if (totalJobs) {

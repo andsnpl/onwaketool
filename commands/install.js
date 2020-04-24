@@ -88,6 +88,7 @@ module.exports = function install(context, args) {
   });
   var plistName = 'pl.andsn.onwaketool';
   var plistText = composePlist(plistName, configPath, logDir, debugFlag);
+  shell.mkdir('-p', path.dirname(configPath));
   shell.mkdir('-p', logDir);
   installService(plistName, plistText);
 };
