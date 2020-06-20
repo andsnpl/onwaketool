@@ -32,8 +32,9 @@ function composePlist(plistName, configPath, logDir, debugFlag) {
       ONWAKED_DEBUG: debugFlag.toString(),
       PATH: process.env.PATH,
     },
-    Program: forever,
     ProgramArguments: [
+      process.argv[0],
+      forever,
       'start',
       '-a',
       '-l',
